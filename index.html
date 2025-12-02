@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Water Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  body { font-family: Inter, sans-serif; background:#f7f7f7; padding:20px; margin:0; }
+  .card { background:#fff; padding:20px; border-radius:12px; max-width:500px; margin:auto; box-shadow:0 5px 20px rgba(0,0,0,0.1); }
+  input, textarea, button { width:100%; padding:10px; margin:8px 0; border-radius:6px; border:1px solid #ccc; font-size:16px; }
+  button { background:#FF5A5F; color:white; border:none; cursor:pointer; }
+  button:hover { background:#e14b50; }
+
+  h2, h3 { margin-top:10px; }
+
+  #sharePopup { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:#fff; padding:20px; box-shadow:0 5px 20px rgba(0,0,0,0.3); border-radius:12px; text-align:center; z-index:999; width:90%; max-width:350px; }
+  #sharePopup img { max-width:100%; display:block; margin:10px auto; border-radius:8px; }
+
+  /* Mobile tuning */
+  @media (max-width:480px) {
+    body { padding:10px; }
+    .card { padding:15px; }
+    input, button { font-size:14px; padding:8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Daily Water Reading</h2>
+
+  <button type="button" style=background:#00A699; onclick="toggleYesterdayEditable()">Toggle Yesterday Editable</button>
+  <button onclick="scanYesterdayQR()">Scan Yesterday QR</button>
+
+  <input type="file" id="qrFileInput" accept="image/*" style="display:none" onchange="handleQRFile(event)">
+
+  <h3>Yesterday Readings</h3>
+  <label>ICW</label><input id="icwY" type="number" readonly/>
+  <label>DCW</label><input id="dcwY" type="number" readonly/>
+  <label>TMT</label><input id="tmtY" type="number" readonly/>
+  <label>Section Mill</label><input id="smy" type="number" readonly/>
+  <label>RO Reject</label><input id="rory" type="number" readonly/>
+  <label>SEWA 2"</label><input id="s2Y" type="number" readonly/>
+  <label>SEWA 4"</label><input id="s4Y" type="number" readonly/>
+
+  <h3>Today Readings</h3>
+  <label>ICW</label><input id="icwT" type="number"/>
+  <label>DCW</label><input id="dcwT" type="number"/>
+  <label>TMT</label><input id="tmtT" type="number"/>
+  <label>Section Mill</label><input id="smt" type="number"/>
+  <label>RO Reject</label><input id="rort" type="number"/>
+  <label>SEWA 2"</label><input id="s2T" type="number"/>
+  <label>SEWA 4"</label><input id="s4T" type="number"/>
+
+  <label>Date</label>
+  <input type="date" id="date" />
+
+  <button onclick="generateHighQualityReportWithQR()">Generate Today's Report</button>
+
+  <div id="sharePopup">
+    <h3>Share Report</h3>
+    <img id="previewImg" src=""/>
+    <div>
+      <button onclick="shareToApp()">Share via App</button>
+      <button onclick="downloadReport()">Download</button>
+      <button onclick="closePopup()">Close</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+
+
+<script>
+function scanYesterdayQR() {
+  document.getElementById('qrFileInput').click();
+}
+
+function handleQRFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
+      if (code) {
+        try {
+          // decompress QR payload
+          const decompressed = LZString.decompressFromBase64(code.data);
+          const values = decompressed.split(',');
+          const [icw, dcw, tmt, smf, ror, s2, s4, date] = values;
+
+          // populate yesterday fields
+          document.getElementById('icwY').value = icw;
+          document.getElementById('dcwY').value = dcw;
+          document.getElementById('tmtY').value = tmt;
+          document.getElementById('smy').value = smf;
+          document.getElementById('rory').value = ror;
+          document.getElementById('s2Y').value = s2;
+          document.getElementById('s4Y').value = s4;
+
+          // make readonly
+          makeYesterdayReadonly(true);
+
+          alert('Yesterday’s values loaded from QR!');
+        } catch(err) {
+          alert('Failed to read QR: ' + err.message);
+        }
+      } else {
+        alert('No QR code found in the image.');
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+
+function generateHighQualityReportWithQR(){
+  const icw = (+document.getElementById('icwT').value || 0) - (+document.getElementById('icwY').value || 0);
+const dcw = (+document.getElementById('dcwT').value || 0) - (+document.getElementById('dcwY').value || 0);
+const tmt = (+document.getElementById('tmtT').value || 0) - (+document.getElementById('tmtY').value || 0);
+const smf = (+document.getElementById('smt').value || 0) - (+document.getElementById('smy').value || 0);
+const ror = (+document.getElementById('rort').value || 0) - (+document.getElementById('rory').value || 0);
+const s2 = (+document.getElementById('s2T').value || 0) - (+document.getElementById('s2Y').value || 0);
+const s4 = (+document.getElementById('s4T').value || 0) - (+document.getElementById('s4Y').value || 0);
+
+  const date = document.getElementById('date').value || new Date().toISOString().split('T')[0];
+
+  const tankTotal = (+icw)+(+dcw)+(+tmt);
+  const sewaTotal = (+s2)+(+s4);
+  const totalWater = tankTotal + (+smf) + (+ror);
+
+  const scale=3, width=400, height=620;
+  const canvas = document.createElement('canvas');
+  canvas.width = width*scale;
+  canvas.height = height*scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale,scale);
+
+  // Background
+  ctx.fillStyle='#F7F7F7'; ctx.fillRect(0,0,width,height);
+
+  // Title
+  ctx.fillStyle='#484848'; ctx.font='bold 16px Inter'; ctx.textAlign='center';
+  ctx.fillText('Arabian Gulf Steel Industries LLC', width/2, 40);
+  ctx.fillText('Mechanical Department - SHJ', width/2, 60);
+  ctx.font='bold 18px Inter'; ctx.fillStyle='#FF5A5F';
+  ctx.fillText('DAILY WATER REPORT', width/2, 85);
+  ctx.fillStyle='#5e35b1'; ctx.font='10px Inter';
+  ctx.fillText(`${date}`, width/2,15);
+  // Rounded rect helper
+  function drawRoundedRectShadow(x,y,w,h,r,fillColor){
+    ctx.shadowColor='rgba(0,0,0,0.1)';
+    ctx.shadowBlur=8; ctx.shadowOffsetX=0; ctx.shadowOffsetY=4;
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+    ctx.fillStyle=fillColor; ctx.fill();
+    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+  }
+
+  let y=110, colW=(width-60)/2;
+
+  drawRoundedRectShadow(20,y,colW,140,16,'#FFEDEB'); ctx.fillStyle='#FF5A5F';
+  ctx.font='bold 16px Inter'; ctx.textAlign='left'; ctx.fillText('Water Tank',30,y+25);
+  ctx.fillStyle='#484848'; ctx.font='15px Inter';
+  ctx.fillText(`ICW: ${icw} m³`,30,y+55);
+  ctx.fillText(`DCW: ${dcw} m³`,30,y+75);
+  ctx.fillText(`TMT: ${tmt} m³`,30,y+95);
+  ctx.fillStyle='#FF5A5F'; ctx.font='bold 15px Inter'; ctx.fillText(`Subtotal: ${tankTotal} m³`,30,y+120);
+
+  drawRoundedRectShadow(40+colW,y,colW,140,16,'#FFF3F2'); ctx.fillStyle='#FF5A5F';
+  ctx.font='bold 16px Inter'; ctx.fillText('Section Mill & RO',50+colW,y+25);
+  ctx.fillStyle='#484848'; ctx.font='15px Inter';
+  ctx.fillText(`Sec Mill: ${smf} m³`,50+colW,y+55);
+  ctx.fillText(`RO Rej: ${ror} m³`,50+colW,y+75);
+  y+=160;
+
+  drawRoundedRectShadow(20,y,colW,140,16,'#E6F7F1'); ctx.fillStyle='#00A699';
+  ctx.font='bold 16px Inter'; ctx.fillText('SEWA Reading',30,y+25);
+  ctx.fillStyle='#484848'; ctx.font='15px Inter';
+  ctx.fillText(`2 inch: ${s2} m³`,30,y+55);
+  ctx.fillText(`4 inch: ${s4} m³`,30,y+75);
+  ctx.fillStyle='#00A699'; ctx.font='bold 15px Inter'; ctx.fillText(`Subtotal: ${sewaTotal} m³`,30,y+110);
+
+  drawRoundedRectShadow(40+colW,y,colW,140,16,'#FFF0F3'); ctx.fillStyle='#FF5A5F';
+  ctx.font='14px Inter'; ctx.fillText(`Consumption`,50+colW,y+30);
+  ctx.font='bold 26px Inter'; ctx.fillText(`${totalWater} m³`,50+colW,y+60);
+  ctx.fillStyle='#00A699'; ctx.font='14px Inter'; ctx.fillText(`Intake`,50+colW,y+90);
+  ctx.font='bold 26px Inter'; ctx.fillText(`${sewaTotal} m³`,50+colW,y+120);
+
+ 
+ // 1️⃣ Prepare compressed QR data
+  const rawData = [icw, dcw, tmt, smf, ror, s2, s4, date].join(','); // just values in fixed order
+  const compressed = LZString.compressToBase64(rawData);
+
+ // 2️⃣ Generate QR
+  const tempDiv = document.createElement('div');
+  document.body.appendChild(tempDiv);
+  
+const qrSize = 150; // QR size
+const qrPadding = 10; // padding inside the rounded box
+
+  const qrCode = new QRCode(tempDiv, {
+    text: compressed,
+    width: qrSize,
+  height: qrSize,
+    correctLevel: QRCode.CorrectLevel.H
+  });
+
+ setTimeout(() => {
+  const qrCanvas = tempDiv.querySelector('canvas');
+
+  // draw rounded rectangle background for QR
+  const boxX = width - qrSize - 40;
+  const boxY = height - qrSize - 40;
+  const boxW = qrSize + 2*qrPadding;
+  const boxH = qrSize + 2*qrPadding;
+  const boxRadius = 12;
+
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = 'white'; // soft coral for QR background
+  ctx.beginPath();
+  ctx.moveTo(boxX + boxRadius, boxY);
+  ctx.lineTo(boxX + boxW - boxRadius, boxY);
+  ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + boxRadius);
+  ctx.lineTo(boxX + boxW, boxY + boxH - boxRadius);
+  ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - boxRadius, boxY + boxH);
+  ctx.lineTo(boxX + boxRadius, boxY + boxH);
+  ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH - boxRadius);
+  ctx.lineTo(boxX, boxY + boxRadius);
+  ctx.quadraticCurveTo(boxX, boxY, boxX + boxRadius, boxY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowColor = 'transparent'; // reset shadow
+
+  // draw QR inside the box
+  ctx.drawImage(qrCanvas, boxX + qrPadding, boxY + qrPadding, qrSize, qrSize);
+
+  // show preview
+  const pngUrl = canvas.toDataURL('image/png');
+  document.getElementById('previewImg').src = pngUrl;
+  document.getElementById('sharePopup').style.display = 'block';
+  window.shareData = { pngUrl, filename: `Water_Report_${date}.png` };
+
+    tempDiv.remove();
+  }, 50);
+}
+
+function makeYesterdayReadonly(flag) {
+  const fields = ['icwY','dcwY','tmtY','smy','rory','s2Y','s4Y'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    el.readOnly = flag;
+    el.style.background = flag ? '#f0f0f0' : '#fff';
+  });
+}
+
+function shareToApp(){
+  if(navigator.canShare&&navigator.canShare({files:[new File([], "dummy")]})){
+    fetch(window.shareData.pngUrl).then(res=>res.blob()).then(blob=>{
+      const file=new File([blob],window.shareData.filename,{type:'image/png'});
+      navigator.share({files:[file],title:'Daily Water Report',text:'Here is today’s water report'});
+    });
+  }else{
+    alert('Web Share API not supported. Please download and share manually.');
+  }
+}
+
+function downloadReport(){
+  const link=document.createElement('a');
+  link.download=window.shareData.filename;
+  link.href=window.shareData.pngUrl;
+  link.click();
+}
+function closePopup(){ document.getElementById('sharePopup').style.display='none'; }
+</script><script>
+function toggleYesterdayEditable() {
+  const fields = ['icwY','dcwY','tmtY','smy','rory','s2Y','s4Y'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    el.readOnly = !el.readOnly; // toggle readonly
+    if(el.readOnly){
+      el.style.background = '#f0f0f0'; // gray out when readonly
+    } else {
+      el.style.background = '#fff'; // white when editable
+    }
+  });
+}
+</script>
+</body>
+</html>
