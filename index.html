@@ -18,6 +18,15 @@
   button { background:#FF5A5F; color:white; border:none; cursor:pointer; }
   button:hover { background:#e14b50; }
 
+  input, textarea, button {
+  box-sizing: border-box;
+}
+.card input,
+.card textarea,
+.card button {
+  max-width: 100%;
+}
+
   h2, h3 { margin-top:10px; }
 
   #sharePopup { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -314,3 +323,4 @@ function toggleYesterdayEditable() {
 </script>
 </body>
 </html>
+
