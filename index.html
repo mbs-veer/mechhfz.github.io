@@ -221,7 +221,16 @@ const s4 = (+document.getElementById('s4T').value || 0) - (+document.getElementB
 
  
  // 1️⃣ Prepare compressed QR data
-  const rawData = [icwT, dcwT, tmtT, smt, rort, s2T, s4T, date].join(','); // just values in fixed order
+  const t_icw = document.getElementById('icwT').value || 0;
+const t_dcw = document.getElementById('dcwT').value || 0;
+const t_tmt = document.getElementById('tmtT').value || 0;
+const t_smf = document.getElementById('smt').value || 0;
+const t_ror = document.getElementById('rort').value || 0;
+const t_s2  = document.getElementById('s2T').value || 0;
+const t_s4  = document.getElementById('s4T').value || 0;
+
+const rawData = [t_icw, t_dcw, t_tmt, t_smf, t_ror, t_s2, t_s4, date].join(',');
+ // just values in fixed order
   const compressed = LZString.compressToBase64(rawData);
 
  // 2️⃣ Generate QR
@@ -323,5 +332,4 @@ function toggleYesterdayEditable() {
 </script>
 </body>
 </html>
-
 
